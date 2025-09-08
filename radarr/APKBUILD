@@ -1,5 +1,5 @@
 pkgname=radarr
-pkgver=0.0.0    # <- auto-patched by workflow
+pkgver=5.27.5.10198
 pkgrel=0
 pkgdesc="Movie collection manager (pre-built musl binary)"
 url="https://radarr.video/"
@@ -31,4 +31,6 @@ exec /usr/lib/$pkgname/Radarr "\$@"
 EOF
 }
 
-sha512sums="SKIP"
+sha512sums="
+8c12dda63c28205b194b2c9ecce9c6f51977503d32b48668d4014e5b7f8c4b5ff00ef52d9e8331855cd7db3e2198a03afc4fed96a3cf2ce5dfe2c1efc8c15b58  radarr-5.27.5.10198-musl.tar.gz
+"
