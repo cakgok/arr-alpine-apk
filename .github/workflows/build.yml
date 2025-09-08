@@ -166,9 +166,9 @@ jobs:
             chown builder:abuild /home/builder/.abuild/$KEY_NAME
             openssl rsa -in /home/builder/.abuild/$KEY_NAME -pubout -out /etc/apk/keys/${KEY_NAME}.pub
             
-            su builder -c "cd /work && abuild checksum"
-            su builder -c "cd /work && abuild -r"
-                    
+            sudo -u builder sh -c "cd /work && abuild checksum"
+            sudo -u builder sh -c "cd /work && abuild -r"  
+                              
             outdir=/work/out
             mkdir -p "$outdir"
             find /home/builder/packages -type f -path "*/${ARCH}/*.apk" \
