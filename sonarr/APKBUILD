@@ -14,7 +14,7 @@ case "$CARCH" in
   *) echo "Unsupported arch: $CARCH" && return 1 ;;
 esac
 
-source="sonarr-$pkgver-musl.tar.gz::https://github.com/Sonarr/Sonarr/releases/download/v${pkgver}/Sonarr.main.${pkgver}.linux-musl-core-${_arch}.tar.gz"
+source="sonarr-$pkgver-musl.tar.gz::https://github.com/Sonarr/Sonarr/releases/download/v${pkgver}/Sonarr.main.${pkgver}.linux-musl-${_arch}.tar.gz"
 builddir="$srcdir"
 
 build() { :; }
@@ -23,7 +23,7 @@ package() {
   install -d "$pkgdir/usr/lib/$pkgname"
   tar -xzf "$srcdir"/Sonarr.main.$pkgver.linux-musl-core-$_arch.tar.gz \
       -C "$pkgdir/usr/lib/$pkgname" --strip-components=1
-      
+
   install -Dm755 /dev/null "$pkgdir/usr/bin/$pkgname"
   cat > "$pkgdir/usr/bin/$pkgname" <<EOF
 #!/usr/bin/env sh
