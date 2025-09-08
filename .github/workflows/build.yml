@@ -210,7 +210,7 @@ create-releases:
       tag_name:  ${{ matrix.app }}-v${{ matrix.version }}
       name:      "${{ matrix.app }} v${{ matrix.version }} for Alpine"
       draft:     false
-      prerelease:false
+      prerelease: false
       files:     artifacts/*.apk
       body: |
         ## ${{ matrix.app }} v${{ matrix.version }}
