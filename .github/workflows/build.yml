@@ -20,7 +20,7 @@ concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
 
-env:
+vars:
   ARCHES: '["x86_64", "aarch64"]'
   APPS_CONFIG: |
     {
@@ -55,10 +55,6 @@ jobs:
     if: needs.detect-updates.outputs.has_updates == 'true'
     runs-on: ubuntu-latest
 
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}-apkbuild-commit
-      cancel-in-progress: false
-
     strategy:
       matrix:
         include: ${{ fromJSON(needs.detect-updates.outputs.apps_matrix) }}
@@ -80,8 +76,10 @@ jobs:
         echo "Updating $apkbuild_path to version $new_version"
         
         # Update version and reset release number
-        sed -Ei '0,/^pkgver=/{s//pkgver='"$new_version"'/}'  "$apkbuild_path"
-        sed -Ei '0,/^pkgrel=/{s//pkgrel=0/}'                 "$apkbuild_path"
+        sed -Ei \
+          -e "s/^pkgver=.*/pkgver=${new_version}/" \
+          -e "s/^pkgrel=.*/pkgrel=0/" \
+          "$apkbuild_path"
 
         # Update checksums using Alpine container
         docker run --rm \
@@ -108,11 +106,12 @@ jobs:
     needs: [detect-updates, update-apkbuilds]
     if: needs.detect-updates.outputs.has_updates == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
         app_data: ${{ fromJSON(needs.detect-updates.outputs.apps_matrix) }}
-        arch: ${{ fromJSON(env.ARCHES) }}
+        arch: ${{ fromJSON(vars.ARCHES) }}
     
     steps:
     - uses: actions/checkout@v4
@@ -180,7 +179,7 @@ jobs:
         retention-days: 30
 
   create-releases:
-    needs: [detect-updates, build-apks]
+    needs: detect-updates
     if: needs.detect-updates.outputs.has_updates == 'true'
     runs-on: ubuntu-latest
     permissions:
