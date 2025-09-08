@@ -1,0 +1,31 @@
+pkgname=sonarr
+pkgver=0.0.0
+pkgrel=0
+pkgdesc="TV series manager (pre-built musl binary)"
+url="https://sonarr.tv/"
+architectures="x86_64 aarch64"
+license="GPL-3.0-or-later"
+depends="icu-libs ca-certificates tzdata"
+options="!check"
+case "$CARCH" in
+  x86_64) _arch="x64" ;;
+  aarch64) _arch="arm64" ;;
+  *) echo "Unsupported arch: $CARCH" && return 1 ;;
+esac
+source="sonarr-$pkgver-musl.tar.gz::https://github.com/Sonarr/Sonarr/releases/download/v${pkgver}/Sonarr.main.${pkgver}.linux-musl-core-${_arch}.tar.gz"
+builddir="$srcdir"
+
+build() { :; }
+
+package() {
+  install -d "$pkgdir/usr/lib/$pkgname"
+  tar -xzf "$srcdir"/Sonarr.main.$pkgver.linux-musl-core-$_arch.tar.gz \
+      -C "$pkgdir/usr/lib/$pkgname" --strip-components=1
+  install -Dm755 /dev/null "$pkgdir/usr/bin/$pkgname"
+  cat > "$pkgdir/usr/bin/$pkgname" <<EOF
+#!/usr/bin/env sh
+exec /usr/lib/$pkgname/Sonarr "\$@"
+EOF
+}
+
+sha512sums="SKIP"
