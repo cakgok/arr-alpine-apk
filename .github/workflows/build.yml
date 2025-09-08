@@ -145,68 +145,50 @@ jobs:
           *) DOCKER_ARCH=$ARCH ;;
         esac
         
-           docker run --rm \
-          --platform=linux/${DOCKER_ARCH} \
-          -e KEY_NAME \
-          -e PRIVATE_KEY \
-          -e ARCH \
-          -e APP_NAME \
-          -v "$PWD/${APP_NAME}":/work \
-          alpine:edge sh -euo pipefail -c '
-            # 1. Setup environment and builder user
-            apk add --no-cache alpine-sdk
-            adduser -D builder
-            addgroup builder abuild
+      docker run --rm \
+        --platform=linux/${DOCKER_ARCH} \
+        -e KEY_NAME \
+        -e PRIVATE_KEY \
+        -e ARCH \
+        -e APP_NAME \
+        -v "$PWD/${APP_NAME}":/work -w /work \
+        alpine:edge sh -euo pipefail -c '
+        apk add --no-cache alpine-sdk openssl
 
-            # 2. Setup signing keys in the builder''s home directory
-            mkdir -p /home/builder/.abuild
-            printf "%s\n" "$PRIVATE_KEY" > /home/builder/.abuild/$KEY_NAME
-            chmod 600 /home/builder/.abuild/$KEY_NAME
-            chown -R builder:abuild /home/builder
-            
-            # 3. Create public key for apk
-            openssl rsa -in /home/builder/.abuild/$KEY_NAME -pubout \
+        # Create builder user (abuild refuses to run as root)
+        adduser -D -G abuild builder
+        echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+        
+        # Set up abuild keys for builder user
+        mkdir -p /home/builder/.abuild
+        printf "%s\n" "$PRIVATE_KEY" > /home/builder/.abuild/$KEY_NAME
+        chmod 600 /home/builder/.abuild/$KEY_NAME
+        chown -R builder:abuild /home/builder/.abuild
+        
+        # Install public key for package verification
+        openssl rsa -in /home/builder/.abuild/$KEY_NAME -pubout \
                     -out /etc/apk/keys/${KEY_NAME}.pub
-
-            # 4. Give builder ownership of the work directory
-            chown -R builder:abuild /work
-
-            # 5. Create a dedicated build script to be run by the builder
-            #    Using a quoted heredoc `<<'"'"'BUILDSCRIPT'"'"'` prevents the outer shell
-            #    from expanding variables like $HOME before they are written.
-            cat > /tmp/build.sh <<'"'"'BUILDSCRIPT'"'"'
-            set -euxo pipefail
-            
-            echo "--- SCRIPT STARTED ---"
-            echo "Running as user: $(id)"
-            echo "HOME directory is: $HOME"
-            echo "Working directory is: $(pwd)"
-            echo "Contents of /work:"
-            ls -la /work
-
-            echo "--- Starting abuild ---"
-            cd /work
-            abuild checksum
-            abuild -r
-            echo "--- abuild finished ---"
-            
-            BUILDSCRIPT
-
-            chmod +x /tmp/build.sh
-
-            # 6. Execute the entire script as the builder user with a clean login shell
-            #    This is the most reliable way to ensure a correct environment.
-            su -l builder -c "/tmp/build.sh"
-
-            # 7. Copy artifacts out (this part runs as root, which is fine)
-            echo "--- Copying artifacts ---"
-            outdir=/work/out
-            mkdir -p "$outdir"
-            find /home/builder/packages -type f -path "*/${ARCH}/*.apk" \
-                -exec cp {} "$outdir"/ \;
-            [ -n "$(ls -A "$outdir")" ] || { echo "No APKs produced"; exit 1; }
-            echo "--- Done ---"
-          '
+        
+        # Configure abuild for builder user
+        echo "PACKAGER_PRIVKEY=\"/home/builder/.abuild/$KEY_NAME\"" > /home/builder/.abuild/abuild.conf
+        chown builder:abuild /home/builder/.abuild/abuild.conf
+        
+        # Set up builder environment and run abuild
+        chown -R builder:abuild /work
+        
+        # Switch to builder user completely
+        runuser -u builder -- sh -c "
+          cd /work
+          abuild checksum
+          abuild -r
+        "
+        
+        # Copy output files (as root to avoid permission issues)
+        outdir=/work/out
+        mkdir -p "$outdir"
+        find /home/builder/packages -type f -path "*/${ARCH}/*.apk" \
+            -exec cp {} "$outdir"/ \;
+        [ -n "$(ls -A "$outdir" 2>/dev/null || true)" ] || { echo "No APKs produced"; exit 1; }
 
 
     - name: Upload ${{ matrix.app_data.app }} ${{ matrix.arch }} artifact
