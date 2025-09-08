@@ -155,6 +155,12 @@ jobs:
           alpine:edge sh -euo pipefail -c '
             apk add --no-cache alpine-sdk
 
+            adduser -D builder
+            addgroup builder abuild
+            echo "builder ALL=(ALL) NOPASSWD: ALL" >/etc/sudoers.d/builder
+            mkdir -p /home/builder/.abuild
+            chown -R builder:abuild /work /home/builder
+
             mkdir -p /root/.abuild
             echo "$PRIVATE_KEY" > /root/.abuild/$KEY_NAME
             chmod 600 /root/.abuild/$KEY_NAME
@@ -162,13 +168,14 @@ jobs:
             openssl rsa -in /root/.abuild/$KEY_NAME -pubout \
                     -out /etc/apk/keys/${KEY_NAME}.pub
             
-            abuild -r
-            
+            su builder -c "cd /work && abuild checksum"
+            su builder -c "cd /work && abuild -r"
+                    
             outdir=/work/out
             mkdir -p "$outdir"
-            find /home -type f -path "*/packages/*/${ARCH}/*.apk" -exec cp {} "$outdir"/ \;
-            
-            [ -n "$(ls -A "$outdir")" ] || { echo "No APKs produced" ; exit 1 ; }
+            find /home/builder/packages -type f -path "*/${ARCH}/*.apk" \
+                -exec cp {} "$out"/ \;
+            [ -n "$(ls -A "$out")" ] || { echo "No APKs produced"; exit 1; }
           '
 
     - name: Upload ${{ matrix.app_data.app }} ${{ matrix.arch }} artifact
@@ -179,7 +186,7 @@ jobs:
         retention-days: 30
 
   create-releases:
-    needs: detect-updates
+    needs: build-apks
     if: needs.detect-updates.outputs.has_updates == 'true'
     runs-on: ubuntu-latest
     permissions:
