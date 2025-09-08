@@ -135,6 +135,7 @@ jobs:
         PRIVATE_KEY: ${{ secrets.ABUILD_PRIVATE_KEY }}
         ARCH: ${{ matrix.arch }}
         APP_NAME: ${{ matrix.app_data.app }}
+        ABUILD_ALLOW_ROOT: 1
       run: |
         set -euo pipefail
         
@@ -151,30 +152,26 @@ jobs:
           -e PRIVATE_KEY \
           -e ARCH \
           -e APP_NAME \
+          -e ABUILD_ALLOW_ROOT \
           -v "$PWD/${APP_NAME}":/work -w /work \
+          
           alpine:edge sh -euo pipefail -c '
-            apk add --no-cache alpine-sdk sudo openssl
+          apk add --no-cache alpine-sdk openssl
 
-            adduser -D builder
-            addgroup builder abuild
-            echo "builder ALL=(ALL) NOPASSWD: ALL" >/etc/sudoers.d/builder
-            mkdir -p /home/builder/.abuild
-            chown -R builder:abuild /work /home/builder
+          mkdir -p /root/.abuild
+          printf "%s\n" "$PRIVATE_KEY" > /root/.abuild/$KEY_NAME
+          chmod 600 /root/.abuild/$KEY_NAME
+          openssl rsa -in /root/.abuild/$KEY_NAME -pubout \
+                      -out /etc/apk/keys/${KEY_NAME}.pub
 
-            printf "%s\n" "$PRIVATE_KEY" > /home/builder/.abuild/$KEY_NAME
-            chmod 600 /home/builder/.abuild/$KEY_NAME
-            chown builder:abuild /home/builder/.abuild/$KEY_NAME
-            openssl rsa -in /home/builder/.abuild/$KEY_NAME -pubout -out /etc/apk/keys/${KEY_NAME}.pub
-            
-            sudo -u builder sh -c "cd /work && abuild checksum"
-            sudo -u builder sh -c "cd /work && abuild -r"  
-                              
-            outdir=/work/out
-            mkdir -p "$outdir"
-            find /home/builder/packages -type f -path "*/${ARCH}/*.apk" \
-                -exec cp {} "$out"/ \;
-            [ -n "$(ls -A "$out")" ] || { echo "No APKs produced"; exit 1; }
-          '
+          abuild checksum
+          abuild -r
+          outdir=/work/out
+          mkdir -p "$outdir"
+          find /home/builder/packages -type f -path "*/${ARCH}/*.apk" \
+              -exec cp {} "$out"/ \;
+          [ -n "$(ls -A "$out")" ] || { echo "No APKs produced"; exit 1; }
+        '
 
     - name: Upload ${{ matrix.app_data.app }} ${{ matrix.arch }} artifact
       uses: actions/upload-artifact@v4
