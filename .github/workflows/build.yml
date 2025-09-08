@@ -135,7 +135,6 @@ jobs:
         PRIVATE_KEY: ${{ secrets.ABUILD_PRIVATE_KEY }}
         ARCH: ${{ matrix.arch }}
         APP_NAME: ${{ matrix.app_data.app }}
-        ABUILD_ALLOWROOT: 1
       run: |
         set -euo pipefail
         
@@ -152,7 +151,6 @@ jobs:
           -e PRIVATE_KEY \
           -e ARCH \
           -e APP_NAME \
-          -e ABUILD_ALLOWROOT \
           -v "$PWD/${APP_NAME}":/work -w /work \
           
           alpine:edge sh -euo pipefail -c '
@@ -164,8 +162,8 @@ jobs:
           openssl rsa -in /root/.abuild/$KEY_NAME -pubout \
                       -out /etc/apk/keys/${KEY_NAME}.pub
 
-          abuild checksum
-          abuild -r
+          abuild -F checksum
+          abuild -F -r
           outdir=/work/out
           mkdir -p "$outdir"
           find /home/builder/packages -type f -path "*/${ARCH}/*.apk" \
