@@ -60,6 +60,9 @@ jobs:
         include: ${{ fromJSON(needs.detect-updates.outputs.apps_matrix) }}
       max-parallel: 1
     
+    permissions:
+      contents: write
+
     steps:
     - uses: actions/checkout@v4
       with:
