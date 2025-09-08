@@ -146,6 +146,14 @@ jobs:
         APP_NAME: ${{ matrix.app_data.app }}
       run: |
         set -euo pipefail
+        
+        case "$ARCH" in
+          x86_64)  DOCKER_ARCH=amd64  ;;
+          aarch64) DOCKER_ARCH=arm64  ;;
+          *)       echo "Unknown arch $ARCH" && exit 1 ;;
+        esac
+        export DOCKER_ARCH
+
         docker run --rm \
           --platform=linux/${DOCKER_ARCH} \
           -e KEY_NAME \
