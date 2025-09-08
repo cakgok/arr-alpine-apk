@@ -179,54 +179,54 @@ jobs:
         path: ${{ matrix.app_data.app }}/out/*.apk
         retention-days: 30
 
-create-releases:
-  needs: [detect-updates, build-apks]
-  if: needs.detect-updates.outputs.has_updates == 'true'
-  runs-on: ubuntu-latest
-  permissions:
-    contents: write
-  strategy:
-    fail-fast: false
-    matrix:
-      include: ${{ fromJSON(needs.detect-updates.outputs.apps_matrix) }}
+  create-releases:
+    needs: [detect-updates, build-apks]
+    if: needs.detect-updates.outputs.has_updates == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.detect-updates.outputs.apps_matrix) }}
 
-  steps:
-  - name: Download ${{ matrix.app }} artifacts (both arches)
-    uses: actions/download-artifact@v4
-    with:
-      pattern: ${{ matrix.app }}-*          # matches bazarr-x86_64-apks etc.
-      path: artifacts
-      merge-multiple: true
+    steps:
+    - name: Download ${{ matrix.app }} artifacts (both arches)
+      uses: actions/download-artifact@v4
+      with:
+        pattern: ${{ matrix.app }}-*          # matches bazarr-x86_64-apks etc.
+        path: artifacts
+        merge-multiple: true
 
-  - name: List downloaded APKs
-    run: |
-      echo "::group::Artifacts for ${{ matrix.app }}"
-      find artifacts -name '*.apk' -printf '%P\n'
-      echo "::endgroup::"
+    - name: List downloaded APKs
+      run: |
+        echo "::group::Artifacts for ${{ matrix.app }}"
+        find artifacts -name '*.apk' -printf '%P\n'
+        echo "::endgroup::"
 
-  - name: Create GitHub release
-    uses: softprops/action-gh-release@v2
-    with:
-      tag_name:  ${{ matrix.app }}-v${{ matrix.version }}
-      name:      "${{ matrix.app }} v${{ matrix.version }} for Alpine"
-      draft:     false
-      prerelease: false
-      files:     artifacts/*.apk
-      body: |
-        ## ${{ matrix.app }} v${{ matrix.version }}
+    - name: Create GitHub release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name:  ${{ matrix.app }}-v${{ matrix.version }}
+        name:      "${{ matrix.app }} v${{ matrix.version }} for Alpine"
+        draft:     false
+        prerelease: false
+        files:     artifacts/*.apk
+        body: |
+          ## ${{ matrix.app }} v${{ matrix.version }}
 
-        **${{ matrix.description }}**
+          **${{ matrix.description }}**
 
-        Alpine Linux APK packages for multiple architectures.
+          Alpine Linux APK packages for multiple architectures.
 
-        ### Installation
-        ```bash
-        apk add --allow-untrusted ${{ matrix.app }}-${{ matrix.version }}-r0.apk
-        ```
+          ### Installation
+          ```bash
+          apk add --allow-untrusted ${{ matrix.app }}-${{ matrix.version }}-r0.apk
+          ```
 
-        ### Architectures
-        - x86_64 (amd64)
-        - aarch64 (arm64)
+          ### Architectures
+          - x86_64 (amd64)
+          - aarch64 (arm64)
 
-        Built automatically from upstream release:  
-        https://github.com/${{ matrix.upstream }}/releases/tag/${{ matrix.version }}
+          Built automatically from upstream release:  
+          https://github.com/${{ matrix.upstream }}/releases/tag/${{ matrix.version }}
