@@ -95,19 +95,20 @@ jobs:
             su -l builder -c "cd /work && abuild checksum"
           '
 
-    - name: Commit & tag
-      run: |
-        set -euo pipefail
-        git config --global user.name  "Auto-APK CI"
-        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+  - name: Commit & tag
+    run: |
+      set -euo pipefail
+      git config --global user.name  "Auto-APK CI"
+      git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-        git add "${{ matrix.app }}/APKBUILD"
-        git commit -m "${{ matrix.app }}: bump to v${{ matrix.version }}"
+      git add "${{ matrix.app }}/APKBUILD"
+      git commit -m "${{ matrix.app }}: bump to v${{ matrix.version }}"
 
-        # push branch first, then tag, then push tags
-        git push origin HEAD:${{ github.ref_name }}
-        git tag -a "${{ matrix.app }}-v${{ matrix.version }}" -m "Release ${{ matrix.app }} v${{ matrix.version }}"
-        git push --tags
+      git pull --rebase --autostash origin "${{ github.ref_name }}"
+
+      git push origin HEAD:"${{ github.ref_name }}"
+      git tag -a "${{ matrix.app }}-v${{ matrix.version }}" -m "Release ${{ matrix.app }} v${{ matrix.version }}"
+      git push --tags
 
   # Build APKs for updated apps
   build-apks:
