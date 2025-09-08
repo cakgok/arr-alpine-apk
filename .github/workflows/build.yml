@@ -99,7 +99,6 @@ jobs:
             chown -R builder:abuild /work
             su -l builder -c "cd /work && abuild checksum"
           '
-
     - name: Commit & tag
       run: |
         set -euo pipefail
@@ -108,8 +107,7 @@ jobs:
 
         git add "${{ matrix.app }}/APKBUILD"
 
-        # Check if there are any staged changes before trying to commit.
-        # `git diff --cached --quiet` exits with 0 if clean, 1 if dirty.
+        # Commit if there are changes
         if ! git diff --cached --quiet; then
           echo "APKBUILD has been updated. Committing and pushing changes..."
           git commit -m "${{ matrix.app }}: bump to v${{ matrix.version }}"
@@ -119,10 +117,15 @@ jobs:
           echo "APKBUILD is already up-to-date. Nothing to commit."
         fi
 
-        # Always create and push the tag, because we know the release is missing.
-        echo "Creating and pushing tag for release."
-        git tag -a "${{ matrix.app }}-v${{ matrix.version }}" -m "Release ${{ matrix.app }} v${{ matrix.version }}"
-        git push --tags
+        # --- FIX: Check if the tag already exists before creating it ---
+        TAG_NAME="${{ matrix.app }}-v${{ matrix.version }}"
+        if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+          echo "Tag $TAG_NAME already exists. Skipping tag creation."
+        else
+          echo "Creating and pushing tag $TAG_NAME"
+          git tag -a "$TAG_NAME" -m "Release ${{ matrix.app }} v${{ matrix.version }}"
+          git push origin "$TAG_NAME" # More efficient to push just the one tag
+        fi
 
   # Build APKs for updated apps
   build-apks:
