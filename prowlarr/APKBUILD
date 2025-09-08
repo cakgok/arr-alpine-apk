@@ -1,5 +1,5 @@
 pkgname=prowlarr
-pkgver=0.0.0
+pkgver=2.0.5.5160
 pkgrel=0
 pkgdesc="Indexer manager/proxy (pre-built musl binary)"
 url="https://prowlarr.com/"
@@ -28,4 +28,6 @@ exec /usr/lib/$pkgname/Prowlarr "\$@"
 EOF
 }
 
-sha512sums="SKIP"
+sha512sums="
+4bbf51fc1bdf08c9904cb9979ba667cbe7612fe641d401923a7910ae600f6ffa43ca6555117ce0d46dc8fc8a86113fb5ef0d25e03abe268958a7034571ae3f69  prowlarr-2.0.5.5160-musl.tar.gz
+"
