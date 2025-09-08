@@ -52,7 +52,7 @@ jobs:
   # Update APKBUILDs and commit changes
   update-apkbuilds:
     needs: detect-updates
-    if: needs.detect-updates.outputs.has_updates == 'true'
+    if: needs.detect-updates.outputs.has_updates == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     strategy:
@@ -113,7 +113,7 @@ jobs:
   # Build APKs for updated apps
   build-apks:
     needs: [detect-updates, update-apkbuilds]
-    if: needs.detect-updates.outputs.has_updates == 'true'
+    if: needs.detect-updates.outputs.has_updates == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
@@ -146,7 +146,7 @@ jobs:
         APP_NAME: ${{ matrix.app_data.app }}
       run: |
         set -euo pipefail
-        
+
         case "$ARCH" in
           x86_64)  DOCKER_ARCH=amd64  ;;
           aarch64) DOCKER_ARCH=arm64  ;;
@@ -192,7 +192,7 @@ jobs:
 
   create-releases:
     needs: build-apks
-    if: needs.detect-updates.outputs.has_updates == 'true'
+    if: needs.detect-updates.outputs.has_updates == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
