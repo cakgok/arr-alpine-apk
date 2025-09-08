@@ -152,24 +152,27 @@ jobs:
           -e ARCH \
           -e APP_NAME \
           -v "$PWD/${APP_NAME}":/work -w /work \
-          
           alpine:edge sh -euo pipefail -c '
-          apk add --no-cache alpine-sdk openssl
+            apk add --no-cache alpine-sdk
+            adduser -D builder
+            addgroup builder abuild
 
-          mkdir -p /root/.abuild
-          printf "%s\n" "$PRIVATE_KEY" > /root/.abuild/$KEY_NAME
-          chmod 600 /root/.abuild/$KEY_NAME
-          openssl rsa -in /root/.abuild/$KEY_NAME -pubout \
-                      -out /etc/apk/keys/${KEY_NAME}.pub
+            mkdir -p /home/builder/.abuild
+            printf "%s\n" "$PRIVATE_KEY" > /home/builder/.abuild/$KEY_NAME
+            chmod 600 /home/builder/.abuild/$KEY_NAME
+            chown -R builder:abuild /work /home/builder
 
-          abuild -F checksum
-          abuild -F -r
-          outdir=/work/out
-          mkdir -p "$outdir"
-          find /home/builder/packages -type f -path "*/${ARCH}/*.apk" \
-              -exec cp {} "$out"/ \;
-          [ -n "$(ls -A "$out")" ] || { echo "No APKs produced"; exit 1; }
-        '
+            openssl rsa -in /home/builder/.abuild/$KEY_NAME -pubout -out /etc/apk/keys/${KEY_NAME}.pub
+            
+            su -l builder -c "cd /work && abuild checksum"
+            su -l builder -c "cd /work && abuild -r"
+                    
+            outdir=/work/out
+            mkdir -p "$outdir"
+            find /home/builder/packages -type f -path "*/${ARCH}/*.apk" \
+                -exec cp {} "$outdir"/ \;
+            [ -n "$(ls -A "$outdir")" ] || { echo "No APKs produced"; exit 1; }
+          '
 
     - name: Upload ${{ matrix.app_data.app }} ${{ matrix.arch }} artifact
       uses: actions/upload-artifact@v4
