@@ -153,35 +153,26 @@ jobs:
           -e APP_NAME \
           -v "$PWD/${APP_NAME}":/work -w /work \
           alpine:edge sh -euo pipefail -c '
-          apk add --no-cache alpine-sdk openssl
+          apk add --no-cache alpine-sdk openssl shadow sudo
 
-          # Create builder user (abuild refuses to run as root)
           adduser -D -G abuild builder
           echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
           
-          # Set up abuild keys for builder user
           mkdir -p /home/builder/.abuild
           printf "%s\n" "$PRIVATE_KEY" > /home/builder/.abuild/$KEY_NAME
           chmod 600 /home/builder/.abuild/$KEY_NAME
           chown -R builder:abuild /home/builder/.abuild
           
-          # Install public key for package verification
           openssl rsa -in /home/builder/.abuild/$KEY_NAME -pubout \
                       -out /etc/apk/keys/${KEY_NAME}.pub
           
-          # Configure abuild for builder user
           echo "PACKAGER_PRIVKEY=\"/home/builder/.abuild/$KEY_NAME\"" > /home/builder/.abuild/abuild.conf
           chown builder:abuild /home/builder/.abuild/abuild.conf
           
-          # Set up builder environment and run abuild
           chown -R builder:abuild /work
           
-          # Switch to builder user completely
-          runuser -u builder -- sh -c "
-            cd /work
-            abuild checksum
-            abuild -r
-          "
+          su - builder -c "cd /work && abuild checksum && abuild -r"
+
           
           # Copy output files (as root to avoid permission issues)
           outdir=/work/out
