@@ -24,22 +24,10 @@ env:
   ARCHES: '["x86_64", "aarch64"]'
   APPS_CONFIG: |
     {
-      "bazarr": {
-        "upstream": "morpheus65535/bazarr",
-        "description": "Subtitle management"
-      },
-      "sonarr": {
-        "upstream": "Sonarr/Sonarr",
-        "description": "TV series management"
-      },
-      "radarr": {
-        "upstream": "Radarr/Radarr",
-        "description": "Movie management"
-      },
-      "prowlarr": {
-        "upstream": "Prowlarr/Prowlarr",
-        "description": "Indexer management"
-      }
+      "bazarr":  { "upstream": "morpheus65535/bazarr",  "description": "Subtitle management" },
+      "sonarr":  { "upstream": "Sonarr/Sonarr",         "description": "TV series management" },
+      "radarr":  { "upstream": "Radarr/Radarr",         "description": "Movie management"   },
+      "prowlarr":{ "upstream": "Prowlarr/Prowlarr",     "description": "Indexer management" }
     }
 
 jobs:
@@ -52,13 +40,13 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-#       token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.GITHUB_TOKEN }}
         fetch-depth: 0
 
     - name: Check for app updates
       id: check-apps
       env:
-        SELECTED_APP: ${{ inputs.app_name }} 
+        SELECTED_APP: ${{ github.event.inputs.app_name || 'all' }}
       run: bash ./scripts/check-apps.sh
 
   # Update APKBUILDs and commit changes
@@ -74,11 +62,13 @@ jobs:
     strategy:
       matrix:
         include: ${{ fromJSON(needs.detect-updates.outputs.apps_matrix) }}
+      max-parallel: 1
     
     steps:
     - uses: actions/checkout@v4
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
 
     - name: Update APKBUILD for ${{ matrix.app }}
       run: |
@@ -90,28 +80,28 @@ jobs:
         echo "Updating $apkbuild_path to version $new_version"
         
         # Update version and reset release number
-        sed -Ei "s/^pkgver=.*/pkgver=$new_version/" "$apkbuild_path"
-        sed -Ei "s/^pkgrel=.*/pkgrel=0/" "$apkbuild_path"
-        
-        # Update checksums using Alpine container
-        docker run --rm -v "$PWD/${{ matrix.app }}":/work -w /work alpine:edge sh -c '
-          apk add --no-cache alpine-sdk
-          abuild checksum
-        '
+        sed -Ei '0,/^pkgver=/{s//pkgver='"$new_version"'/}'  "$apkbuild_path"
+        sed -Ei '0,/^pkgrel=/{s//pkgrel=0/}'                 "$apkbuild_path"
 
-    - name: Commit changes for ${{ matrix.app }}
+        # Update checksums using Alpine container
+        docker run --rm \
+          -v "$PWD/${{ matrix.app }}":/work -w /work \
+          alpine:edge sh -euo pipefail -c \
+            'apk add --no-cache alpine-sdk && abuild checksum'
+
+    - name: Commit & tag
       run: |
-        git config user.name "CI Bot"
-        git config user.email "ci@users.noreply.github.com"
-        
+        set -euo pipefail
+        git config --global user.name  "Auto-APK CI"
+        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
         git add "${{ matrix.app }}/APKBUILD"
         git commit -m "${{ matrix.app }}: bump to v${{ matrix.version }}"
-        
-        # Create an annotated tag
+
+        # push branch first, then tag, then push tags
+        git push origin HEAD:${{ github.ref_name }}
         git tag -a "${{ matrix.app }}-v${{ matrix.version }}" -m "Release ${{ matrix.app }} v${{ matrix.version }}"
-        
-        # Explicitly push the branch and the new tags
-        git push origin HEAD:${{ github.ref_name }} --follow-tags
+        git push --tags
 
   # Build APKs for updated apps
   build-apks:
@@ -127,7 +117,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        ref: ${{ matrix.app_data.app }}-v${{ matrix.app_data.version }}
+        ref: ${{ github.ref }}
         fetch-depth: 0
 
     - name: Enable multi-arch emulation
@@ -147,7 +137,7 @@ jobs:
         ARCH: ${{ matrix.arch }}
         APP_NAME: ${{ matrix.app_data.app }}
       run: |
-        set -eux
+        set -euo pipefail
         
         # Map GitHub runner arch to Docker platform
         case "$ARCH" in
@@ -158,91 +148,85 @@ jobs:
         
         docker run --rm \
           --platform=linux/${DOCKER_ARCH} \
-          -e KEY_NAME -e PRIVATE_KEY \
+          -e KEY_NAME \
+          -e PRIVATE_KEY \
+          -e ARCH \
+          -e APP_NAME \
           -v "$PWD/${APP_NAME}":/work -w /work \
-          alpine:edge sh -euxo pipefail -c '
+          alpine:edge sh -euo pipefail -c '
             apk add --no-cache alpine-sdk
-            
-            # Setup abuild environment
+
             mkdir -p /root/.abuild
             echo "$PRIVATE_KEY" > /root/.abuild/$KEY_NAME
             chmod 600 /root/.abuild/$KEY_NAME
             
-            # Extract and install public key
             openssl rsa -in /root/.abuild/$KEY_NAME -pubout \
                     -out /etc/apk/keys/${KEY_NAME}.pub
             
-            # Build and sign the package (checksums already updated)
             abuild -r
             
-            # Copy built packages
             outdir=/work/out
             mkdir -p "$outdir"
-            find /home/*/packages -name "*.apk" -exec cp {} "$outdir"/ \;
+            find /home -type f -path "*/packages/*/${ARCH}/*.apk" -exec cp {} "$outdir"/ \;
             
-            # Verify build output
-            if [ ! "$(ls -A $outdir 2>/dev/null)" ]; then
-              echo "No APK files were built"
-              exit 1
-            fi
-            
-            ls -la "$outdir"
+            [ -n "$(ls -A "$outdir")" ] || { echo "No APKs produced" ; exit 1 ; }
           '
 
-    - name: Upload artifacts
+    - name: Upload ${{ matrix.app_data.app }} ${{ matrix.arch }} artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ matrix.app_data.app }}-v${{ matrix.app_data.version }}-${{ matrix.arch }}
+        name: ${{ matrix.app_data.app }}-${{ matrix.arch }}-apks
         path: ${{ matrix.app_data.app }}/out/*.apk
         retention-days: 30
 
-  # Create GitHub releases
-  create-releases:
-    needs: [detect-updates, build-apks]
-    if: needs.detect-updates.outputs.has_updates == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    strategy:
-      matrix:
-        include: ${{ fromJSON(needs.detect-updates.outputs.apps_matrix) }}
-    
-    steps:
-    - name: Download artifacts for ${{ matrix.app }}
-      uses: actions/download-artifact@v4
-      with:
-        pattern: ${{ matrix.app }}-v${{ matrix.version }}-*
-        path: artifacts
-        merge-multiple: true
+create-releases:
+  needs: [detect-updates, build-apks]
+  if: needs.detect-updates.outputs.has_updates == 'true'
+  runs-on: ubuntu-latest
+  permissions:
+    contents: write
+  strategy:
+    fail-fast: false
+    matrix:
+      include: ${{ fromJSON(needs.detect-updates.outputs.apps_matrix) }}
 
-    - name: List artifacts
-      run: |
-        echo "Downloaded artifacts for ${{ matrix.app }}:"
-        find artifacts -name "*.apk" -ls
+  steps:
+  - name: Download ${{ matrix.app }} artifacts (both arches)
+    uses: actions/download-artifact@v4
+    with:
+      pattern: ${{ matrix.app }}-*          # matches bazarr-x86_64-apks etc.
+      path: artifacts
+      merge-multiple: true
 
-    - name: Create release for ${{ matrix.app }}
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ matrix.app }}-v${{ matrix.version }}
-        name: "${{ matrix.app }} v${{ matrix.version }} for Alpine"
-        body: |
-          ## ${{ matrix.app }} v${{ matrix.version }}
-          
-          **${{ matrix.description }}**
-          
-          Alpine Linux APK packages for multiple architectures.
-          
-          ### Installation
-          ```bash
-          # Add the APK to your Alpine system
-          apk add --allow-untrusted ${{ matrix.app }}-${{ matrix.version }}-r0.apk
-          ```
-          
-          ### Architectures
-          - x86_64 (Intel/AMD 64-bit)
-          - aarch64 (ARM 64-bit)
-          
-          Built automatically from upstream release: https://github.com/${{ matrix.upstream }}/releases/tag/v${{ matrix.version }}
-        files: artifacts/*.apk
-        draft: false
-        prerelease: false
+  - name: List downloaded APKs
+    run: |
+      echo "::group::Artifacts for ${{ matrix.app }}"
+      find artifacts -name '*.apk' -printf '%P\n'
+      echo "::endgroup::"
+
+  - name: Create GitHub release
+    uses: softprops/action-gh-release@v2
+    with:
+      tag_name:  ${{ matrix.app }}-v${{ matrix.version }}
+      name:      "${{ matrix.app }} v${{ matrix.version }} for Alpine"
+      draft:     false
+      prerelease:false
+      files:     artifacts/*.apk
+      body: |
+        ## ${{ matrix.app }} v${{ matrix.version }}
+
+        **${{ matrix.description }}**
+
+        Alpine Linux APK packages for multiple architectures.
+
+        ### Installation
+        ```bash
+        apk add --allow-untrusted ${{ matrix.app }}-${{ matrix.version }}-r0.apk
+        ```
+
+        ### Architectures
+        - x86_64 (amd64)
+        - aarch64 (arm64)
+
+        Built automatically from upstream release:  
+        https://github.com/${{ matrix.upstream }}/releases/tag/${{ matrix.version }}

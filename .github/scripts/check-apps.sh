@@ -68,18 +68,17 @@ else
 
     # Build matrix JSON with jq
     matrix_json=$(
-        printf '%s\0' "${apps_needing_update[@]}" | # NUL-delimited
-        jq -Rn --argjson cfg "$apps_json" '
-            [ inputs
-                | rtrimstr("\u0000")           # drop trailing NUL
-                | split(":") as $p
-                | {
-                    app:      $p[0],
-                    version:  $p[1],
-                    upstream: $p[2]
-                    }
-                | .description = $cfg[.app].description
-            ]' | jq -c
+    printf '%s\n' "${apps_needing_update[@]}" |
+    jq -Rn --argjson cfg "$apps_json" '
+        [ inputs
+        | split(":") as $p
+        | {
+            app:      $p[0],
+            version:  $p[1],
+            upstream: $p[2]
+            }
+        | .description = $cfg[.app].description
+        ]' | jq -c
     )
 
     {
