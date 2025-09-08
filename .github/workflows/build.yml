@@ -107,11 +107,20 @@ jobs:
         git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
         git add "${{ matrix.app }}/APKBUILD"
-        git commit -m "${{ matrix.app }}: bump to v${{ matrix.version }}"
 
-        git pull --rebase --autostash origin "${{ github.ref_name }}"
+        # Check if there are any staged changes before trying to commit.
+        # `git diff --cached --quiet` exits with 0 if clean, 1 if dirty.
+        if ! git diff --cached --quiet; then
+          echo "APKBUILD has been updated. Committing and pushing changes..."
+          git commit -m "${{ matrix.app }}: bump to v${{ matrix.version }}"
+          git pull --rebase --autostash origin "main"
+          git push origin HEAD:"main"
+        else
+          echo "APKBUILD is already up-to-date. Nothing to commit."
+        fi
 
-        git push origin HEAD:"${{ github.ref_name }}"
+        # Always create and push the tag, because we know the release is missing.
+        echo "Creating and pushing tag for release."
         git tag -a "${{ matrix.app }}-v${{ matrix.version }}" -m "Release ${{ matrix.app }} v${{ matrix.version }}"
         git push --tags
 
