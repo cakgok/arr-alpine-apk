@@ -5,6 +5,11 @@ set -euo pipefail
 apps_json="$APPS_CONFIG"
 SELECTED_APP="${SELECTED_APP:-all}"
 
+auth_header=()
+if [[ -n "${GH_PAT:-}" ]]; then
+  auth_header=(-H "Authorization: Bearer ${GH_PAT}")
+fi
+
 apps_to_check=()
 
 if [[ $SELECTED_APP = all ]]; then
@@ -14,6 +19,7 @@ else
 fi
 
 apps_needing_update=()
+
 for app in "${apps_to_check[@]}"; do
     
     # Get upstream repo
@@ -33,14 +39,15 @@ for app in "${apps_to_check[@]}"; do
     
     # Fetch latest upstream tag
     latest_tag=$(
-        curl -sS -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${GITHUB_TOKEN:-}" \
-            "https://api.github.com/repos/${upstream}/releases/latest" \
+        curl -sfSL -H "Accept: application/vnd.github+json" \
+                -H "User-Agent: update-checker" \
+                "${auth_header[@]}" \
+                "https://api.github.com/repos/${upstream}/releases/latest" \
         | jq -r '.tag_name // empty' | sed 's/^v//'
-        ) || true 
+    ) || latest_tag=""
         
-    if [ -z "$latest_tag" ] || [ "$latest_tag" = "null" ]; then
-        echo "Failed to fetch upstream tag for $app"
+    if [[ -z $latest_tag ]]; then
+        echo "[$app] Couldn’t fetch a release (maybe only prereleases?)"
         continue
     fi
     
