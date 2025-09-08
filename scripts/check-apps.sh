@@ -50,18 +50,20 @@ for app in "${apps_to_check[@]}"; do
         echo "[$app] Couldn’t fetch a release (maybe only prereleases?)"
         continue
     fi
+
+    expected_tag="${app}-v${latest_tag}"
     
-    # Read current version from APKBUILD
-    current_ver=$(grep -m1 -Po '^pkgver=\K\S+' "$apkbuild_path" || true)
-    
-    echo "[$app] Current: $current_ver  Latest: $latest_tag"
-    
-    if [[ $latest_tag != "$current_ver" && -n "$current_ver" ]]; then        
-        echo "[$app] → update needed!"
-        apps_needing_update+=("$app:$latest_tag:$upstream")
+    echo "[$app] Latest upstream: $latest_tag. Checking for our release tag: $expected_tag"
+
+    # Check if a release with that tag already exists in repo.
+    # `gh release view` exits with a non-zero code if the release is not found.
+    if gh release view "$expected_tag" >/dev/null 2>&1; then
+      echo "[$app] ✔ Release already exists."
     else
-        echo "[$app] ✔ up-to-date"
+      echo "[$app] → Missing release! Adding to build queue."
+      apps_needing_update+=("$app:$latest_tag:$upstream")
     fi
+    
 done
 
 if [[ ${#apps_needing_update[@]} -eq 0 ]]; then

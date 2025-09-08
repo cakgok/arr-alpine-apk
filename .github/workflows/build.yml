@@ -36,7 +36,11 @@ jobs:
     outputs:
       apps_matrix: ${{ steps.check-apps.outputs.apps_matrix }}
       has_updates: ${{ steps.check-apps.outputs.has_updates }}
-    
+
+    permissions:
+      contents: read
+      packages: read
+
     steps:
     - uses: actions/checkout@v4
       with:
@@ -46,13 +50,14 @@ jobs:
     - name: Check for app updates
       id: check-apps
       env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         SELECTED_APP: ${{ github.event.inputs.app_name || 'all' }}
       run: bash ./scripts/check-apps.sh
 
   # Update APKBUILDs and commit changes
   update-apkbuilds:
     needs: detect-updates
-    if: needs.detect-updates.outputs.has_updates == 'true' || github.event_name == 'workflow_dispatch'
+    if: needs.detect-updates.outputs.has_updates == 'true'
     runs-on: ubuntu-latest
 
     strategy:
@@ -113,7 +118,7 @@ jobs:
   # Build APKs for updated apps
   build-apks:
     needs: [detect-updates, update-apkbuilds]
-    if: needs.detect-updates.outputs.has_updates == 'true' || github.event_name == 'workflow_dispatch'
+    if: needs.detect-updates.outputs.has_updates == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
@@ -192,7 +197,7 @@ jobs:
 
   create-releases:
     needs: build-apks
-    if: needs.detect-updates.outputs.has_updates == 'true' || github.event_name == 'workflow_dispatch'
+    if: needs.detect-updates.outputs.has_updates == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
