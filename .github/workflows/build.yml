@@ -20,7 +20,7 @@ concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
 
-vars:
+env:
   ARCHES: '["x86_64", "aarch64"]'
   APPS_CONFIG: |
     {
@@ -111,7 +111,7 @@ jobs:
       fail-fast: false
       matrix:
         app_data: ${{ fromJSON(needs.detect-updates.outputs.apps_matrix) }}
-        arch: ${{ fromJSON(vars.ARCHES) }}
+        arch:     ${{ fromJSON('["x86_64","aarch64"]') }}
     
     steps:
     - uses: actions/checkout@v4
