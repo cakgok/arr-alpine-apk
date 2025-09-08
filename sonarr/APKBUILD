@@ -1,5 +1,5 @@
 pkgname=sonarr
-pkgver=0.0.0
+pkgver=4.0.15.2941
 pkgrel=0
 pkgdesc="TV series manager (pre-built musl binary)"
 url="https://sonarr.tv/"
@@ -31,4 +31,6 @@ exec /usr/lib/$pkgname/Sonarr "\$@"
 EOF
 }
 
-sha512sums="SKIP"
+sha512sums="
+c16818363d191410860cbd1d393368d163794ce2438698497fd5f4e9b5bb545957a1b3c276c2bdebffa01b9ae5df81317ca7d89a841f7df3a67e76e2b880fad4  sonarr-4.0.15.2941-musl.tar.gz
+"
