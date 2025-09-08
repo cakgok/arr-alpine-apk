@@ -145,43 +145,69 @@ jobs:
           *) DOCKER_ARCH=$ARCH ;;
         esac
         
-        docker run --rm \
+           docker run --rm \
           --platform=linux/${DOCKER_ARCH} \
           -e KEY_NAME \
           -e PRIVATE_KEY \
           -e ARCH \
           -e APP_NAME \
-          -v "$PWD/${APP_NAME}":/work -w /work \
+          -v "$PWD/${APP_NAME}":/work \
           alpine:edge sh -euo pipefail -c '
+            # 1. Setup environment and builder user
+            apk add --no-cache alpine-sdk
+            adduser -D builder
+            addgroup builder abuild
 
-          apk add --no-cache alpine-sdk openssl
-          adduser -D -G abuild builder
+            # 2. Setup signing keys in the builder''s home directory
+            mkdir -p /home/builder/.abuild
+            printf "%s\n" "$PRIVATE_KEY" > /home/builder/.abuild/$KEY_NAME
+            chmod 600 /home/builder/.abuild/$KEY_NAME
+            chown -R builder:abuild /home/builder
+            
+            # 3. Create public key for apk
+            openssl rsa -in /home/builder/.abuild/$KEY_NAME -pubout \
+                    -out /etc/apk/keys/${KEY_NAME}.pub
 
-          mkdir -p /root/.abuild
-          printf "%s\n" "$PRIVATE_KEY" > /root/.abuild/$KEY_NAME
-          chmod 600 /root/.abuild/$KEY_NAME
-          openssl rsa -in /root/.abuild/$KEY_NAME -pubout \
-                      -out /etc/apk/keys/${KEY_NAME}.pub
+            # 4. Give builder ownership of the work directory
+            chown -R builder:abuild /work
 
-          # Copy keys to builder user
-          mkdir -p /home/builder/.abuild
-          cp /root/.abuild/$KEY_NAME /home/builder/.abuild/
-          chown -R builder:abuild /home/builder/.abuild
-          chmod 600 /home/builder/.abuild/$KEY_NAME
-          
-          chown -R builder:abuild /work
-          su builder -c "
+            # 5. Create a dedicated build script to be run by the builder
+            #    Using a quoted heredoc `<<'"'"'BUILDSCRIPT'"'"'` prevents the outer shell
+            #    from expanding variables like $HOME before they are written.
+            cat > /tmp/build.sh <<'"'"'BUILDSCRIPT'"'"'
+            set -euxo pipefail
+            
+            echo "--- SCRIPT STARTED ---"
+            echo "Running as user: $(id)"
+            echo "HOME directory is: $HOME"
+            echo "Working directory is: $(pwd)"
+            echo "Contents of /work:"
+            ls -la /work
+
+            echo "--- Starting abuild ---"
             cd /work
-            abuild-keygen -a -i -n
             abuild checksum
             abuild -r
-          "                  
-          outdir=/work/out
-          mkdir -p "$outdir"
-          find /home/builder/packages -type f -path "*/${ARCH}/*.apk" \
-              -exec cp {} "$outdir"/ \;
-          [ -n "$(ls -A "$outdir")" ] || { echo "No APKs produced"; exit 1; }
-        '
+            echo "--- abuild finished ---"
+            
+            BUILDSCRIPT
+
+            chmod +x /tmp/build.sh
+
+            # 6. Execute the entire script as the builder user with a clean login shell
+            #    This is the most reliable way to ensure a correct environment.
+            su -l builder -c "/tmp/build.sh"
+
+            # 7. Copy artifacts out (this part runs as root, which is fine)
+            echo "--- Copying artifacts ---"
+            outdir=/work/out
+            mkdir -p "$outdir"
+            find /home/builder/packages -type f -path "*/${ARCH}/*.apk" \
+                -exec cp {} "$outdir"/ \;
+            [ -n "$(ls -A "$outdir")" ] || { echo "No APKs produced"; exit 1; }
+            echo "--- Done ---"
+          '
+
 
     - name: Upload ${{ matrix.app_data.app }} ${{ matrix.arch }} artifact
       uses: actions/upload-artifact@v4
