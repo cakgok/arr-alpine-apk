@@ -16,8 +16,7 @@ echo "📦 Output directory: ${OUT_DIR}"
 # 2. Run the build inside a Docker container
 docker run --rm \
   -v "${SRC_DIR}":/work \
-  -v "${OUT_DIR}":/packages \
-  -e "ABUILD_REPODEST=/packages" \
+  -v "${OUT_DIR}":/out \
   -e "PRIVATE_KEY=${PRIVATE_KEY}" \
   -e "KEY_NAME=${KEY_NAME}" \
   -e "TARGET_ARCH=${TARGET_ARCH}" \
@@ -28,7 +27,7 @@ docker run --rm \
     adduser -D builder
     addgroup builder abuild
     echo "builder ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builder
-    chown -R builder:abuild /work /packages
+    chown -R builder:abuild /work /out
 
     su builder -c "
       set -euo pipefail
@@ -49,8 +48,16 @@ docker run --rm \
       ls -la ~/.abuild/
       cat ~/.abuild/abuild.conf
 
-      # Run the buil
+      # Run the build
       abuild -r
+      
+      # Copy the built packages to the output directory
+      echo \"📦 Copying packages to output directory...\"
+      find ~/packages -name \"*.apk\" -type f -exec cp {} /out/ \; || echo \"No packages found to copy\"
+      
+      # List what we copied
+      echo \"📋 Files in output directory:\"
+      ls -la /out/ || echo \"Output directory is empty\"
     "
   '
   
