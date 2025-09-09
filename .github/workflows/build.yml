@@ -95,7 +95,8 @@ jobs:
             apk add --no-cache alpine-sdk
             abuild checksum
           '
-          
+        sudo chown -R "$(id -u):$(id -g)" "${{ matrix.app }}"
+        chmod -R u+w "${{ matrix.app }}"
     - name: Commit & tag
       run: |
         set -euo pipefail
