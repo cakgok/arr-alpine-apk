@@ -6,7 +6,7 @@ url="https://radarr.video/"
 arch="x86_64" 
 license="GPL-3.0-or-later"
 depends="icu-libs ca-certificates tzdata lttng-ust"
-makedepends="$depends"
+makedepends="$depends patchelf"
 options="!check"
 _arch="x64"
 source="radarr-$pkgver-musl.tar.gz::https://github.com/Radarr/Radarr/releases/download/v${pkgver}/Radarr.master.${pkgver}.linux-musl-core-${_arch}.tar.gz"
@@ -17,16 +17,26 @@ build() {
 }
 
 package() {
-	install -d "$pkgdir/usr/lib/$pkgname"
-	cp -r "$srcdir/Radarr/." "$pkgdir/usr/lib/$pkgname/"
-	install -Dm755 /dev/null "$pkgdir/usr/bin/$pkgname"
+  install -d "$pkgdir/usr/lib/$pkgname"
+  cp -r "$srcdir/Radarr/." "$pkgdir/usr/lib/$pkgname/"
 
-	cat > "$pkgdir/usr/bin/$pkgname" <<-EOF
-	#!/usr/bin/env sh
-	# This script executes the main Radarr binary
-	exec /usr/lib/$pkgname/Radarr "\$@"
-	EOF
+  # fix outdated LTTng soname
+  find "$pkgdir/usr/lib/$pkgname" -type f \( -name '*.so*' -o -perm -u+x \) \
+    -exec sh -c '
+        for f; do
+          if scanelf -q "$f" | grep -q "liblttng-ust.so.0"; then
+            patchelf --replace-needed liblttng-ust.so.0 liblttng-ust.so.1 "$f"
+          fi
+        done
+    ' _ {} +
+
+  install -Dm755 /dev/null "$pkgdir/usr/bin/$pkgname"
+  cat > "$pkgdir/usr/bin/$pkgname" <<-EOF
+    #!/usr/bin/env sh
+    exec /usr/lib/$pkgname/Radarr "\$@"
+EOF
 }
+
 
 sha512sums="
 8c12dda63c28205b194b2c9ecce9c6f51977503d32b48668d4014e5b7f8c4b5ff00ef52d9e8331855cd7db3e2198a03afc4fed96a3cf2ce5dfe2c1efc8c15b58  radarr-5.27.5.10198-musl.tar.gz
