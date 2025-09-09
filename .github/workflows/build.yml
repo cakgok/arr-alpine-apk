@@ -161,7 +161,7 @@ jobs:
         PRIVATE_KEY: ${{ secrets.ABUILD_PRIVATE_KEY }}
         ARCH: ${{ matrix.arch }}
         APP_NAME: ${{ matrix.app_data.app }}
-      run: |
+run: |
         set -euo pipefail
 
         case "$ARCH" in
@@ -183,21 +183,17 @@ jobs:
             adduser -D builder
             addgroup builder abuild
             
-            # --- FIX: Reordered the commands below ---
-            
-            # 1. Create the directory and the key file first (as root)
             mkdir -p /home/builder/.abuild
-            printf "%s\n" "$PRIVATE_KEY" > /home/builder/.abuild/$KEY_NAME
-            chmod 600 /home/builder/.abuild/$KEY_NAME
 
-            # 2. NOW, give ownership of everything to the builder
-            chown -R builder:abuild /work /home/builder
+            printf "%s\n" "$PRIVATE_KEY" > "/home/builder/.abuild/${KEY_NAME}"
+            chmod 600 "/home/builder/.abuild/${KEY_NAME}"
+            echo "PACKAGER_PRIVKEY=\"/home/builder/.abuild/${KEY_NAME}\"" > /home/builder/.abuild/abuild.conf
+            
+            chown -R builder:abuild /home/builder
+            chown -R builder:abuild /work # Also ensure work dir is owned by builder
 
-            # 3. Create public key (root can still read the file to do this)
-            openssl rsa -in /home/builder/.abuild/$KEY_NAME -pubout -out /etc/apk/keys/${KEY_NAME}.pub
+            openssl rsa -in "/home/builder/.abuild/${KEY_NAME}" -pubout -out "/etc/apk/keys/${KEY_NAME}.pub"
 
-            # 4. Run the build as the builder user, who now owns the private key
-            #    Using `su -l` is slightly cleaner as it simulates a full login shell.
             su -l builder -c "cd /work && abuild checksum"
             su -l builder -c "cd /work && abuild -r"
 
