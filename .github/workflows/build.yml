@@ -89,13 +89,15 @@ jobs:
 
         # Run abuild as the *current* UID/GID so ownership is preserved
         docker run --rm \
-          -v "$PWD/${{ matrix.app }}":/work -w /work \
-          alpine:edge sh -euo pipefail -c '
-            apk add --no-cache alpine-sdk
-            abuild checksum
-          '
-        sudo chown -R "$(id -u):$(id -g)" "${{ matrix.app }}"
-        chmod -R u+w "${{ matrix.app }}"
+        -e HOST_UID=$(id -u) \
+        -e HOST_GID=$(id -g) \
+        -v "$PWD/${{ matrix.app }}":/work -w /work \
+        alpine:edge sh -euo pipefail -c '
+          apk add --no-cache alpine-sdk
+          abuild checksum
+          chown -R "$HOST_UID:$HOST_GID" /work   # hand work dir back
+        '
+
     - name: Commit & tag
       run: |
         set -euo pipefail
