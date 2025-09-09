@@ -76,23 +76,26 @@ jobs:
     - name: Update APKBUILD for ${{ matrix.app }}
       run: |
         set -e
-        
+
         apkbuild_path="${{ matrix.app }}/APKBUILD"
         new_version="${{ matrix.version }}"
-        
+
         echo "Updating $apkbuild_path to version $new_version"
-        
+
         sed -Ei \
           -e "s/^pkgver=.*/pkgver=${new_version}/" \
           -e "s/^pkgrel=.*/pkgrel=0/" \
           "$apkbuild_path"
 
+        # Run abuild as the *current* UID/GID so ownership is preserved
         docker run --rm \
+          -u "$(id -u):$(id -g)" \
           -v "$PWD/${{ matrix.app }}":/work -w /work \
           alpine:edge sh -euo pipefail -c '
             apk add --no-cache alpine-sdk
             abuild checksum
           '
+          
     - name: Commit & tag
       run: |
         set -euo pipefail
