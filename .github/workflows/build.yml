@@ -193,8 +193,11 @@ jobs:
             chown -R builder:abuild /work # Also ensure work dir is owned by builder
 
             openssl rsa -in "/home/builder/.abuild/${KEY_NAME}" -pubout -out "/etc/apk/keys/${KEY_NAME}.pub"
-            cp "/etc/apk/keys/${KEY_NAME}.pub" "/home/builder/.abuild/${KEY_NAME}.pub"
-
+            openssl rsa -in "/home/builder/.abuild/${KEY_NAME}" -pubout -out "/home/builder/.abuild/${KEY_NAME}.pub"
+            
+            chown -R builder:abuild /home/builder
+            chown -R builder:abuild /work
+        
             su -l builder -c "cd /work && abuild checksum"
             su -l builder -c "cd /work && abuild -r"
 
