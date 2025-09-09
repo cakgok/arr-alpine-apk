@@ -176,6 +176,7 @@ jobs:
           -e PRIVATE_KEY \
           -e TARGET_ARCH \
           -e APP_NAME \
+          -e PACKAGER_PRIVKEY=/home/builder/.abuild/${KEY_NAME} \
           -v "$PWD/${APP_NAME}":/work -w /work \
           alpine:edge sh -euo pipefail -c '
             apk add --no-cache alpine-sdk openssl
