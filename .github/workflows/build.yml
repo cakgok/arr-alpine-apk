@@ -185,28 +185,25 @@ jobs:
             
             mkdir -p /home/builder/.abuild
 
-            printf "%s\n" "$PRIVATE_KEY" > "/home/builder/.abuild/${KEY_NAME}"
+            printf '%s\n' "$PRIVATE_KEY" > "/home/builder/.abuild/${KEY_NAME}"
             chmod 600 "/home/builder/.abuild/${KEY_NAME}"
-            echo "PACKAGER_PRIVKEY=\"/home/builder/.abuild/${KEY_NAME}\"" > /home/builder/.abuild/abuild.conf
-            
-            chown -R builder:abuild /home/builder
-            chown -R builder:abuild /work # Also ensure work dir is owned by builder
 
-            openssl rsa -in "/home/builder/.abuild/${KEY_NAME}" -pubout -out "/etc/apk/keys/${KEY_NAME}.pub"
-            openssl rsa -in "/home/builder/.abuild/${KEY_NAME}" -pubout -out "/home/builder/.abuild/${KEY_NAME}.pub"
-            
+            openssl rsa -in "/home/builder/.abuild/${KEY_NAME}" -pubout \
+                  -out "/home/builder/.abuild/${KEY_NAME}.pub"
+            openssl rsa -in "/home/builder/.abuild/${KEY_NAME}" -pubout \
+                  -out "/etc/apk/keys/${KEY_NAME}.pub"
+
             chown -R builder:abuild /home/builder
             chown -R builder:abuild /work
         
-            echo "### DEBUG: after key generation"
-            echo "KEY_NAME = ${KEY_NAME}"
+            echo "### DEBUG ─ after key generation"
+            echo "KEY_NAME      = ${KEY_NAME}"
             echo "--- /home/builder/.abuild"
-            ls -l /home/builder/.abuild | sed 's/^/   /'
-            echo "--- /etc/apk/keys (tail)"
-            ls -l /etc/apk/keys | tail -n 5 | sed 's/^/   /'
-
-            echo "### TEST: can builder read the public key?"
-            su -l builder -c "cat /home/builder/.abuild/${KEY_NAME}.pub >/dev/null && echo '   ✔ readable' || echo '   ✘ not readable'"
+            ls -l /home/builder/.abuild
+            echo "--- /etc/apk/keys (last 5)"
+            ls -l /etc/apk/keys | tail -n 5
+            echo "--- abuild.conf"
+            cat /home/builder/.abuild/abuild.conf || true
 
 
             su -l builder -c "cd /work && abuild checksum"
