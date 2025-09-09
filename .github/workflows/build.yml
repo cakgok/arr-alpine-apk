@@ -147,12 +147,19 @@ jobs:
         APP_NAME: ${{ matrix.app }}
       run: bash ./scripts/build.sh
 
+    - name: Debug - List APK files
+      run: |
+        echo "Contents of ${{ matrix.app }}/out:"
+        find ${{ matrix.app }}/out -type f -name "*.apk" || echo "No APK files found"
+        ls -la ${{ matrix.app }}/out/ || echo "Directory doesn't exist"
+    
     - name: Upload ${{ matrix.app }} artifact
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.app }}-x86_64-apks
-        path: ${{ matrix.app }}/out/**/*.apk
+        path: ${{ matrix.app }}/out/
         retention-days: 30
+    
 
 
   create-releases:
