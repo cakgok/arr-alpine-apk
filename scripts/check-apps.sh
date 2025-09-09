@@ -75,10 +75,9 @@ if [[ ${#apps_needing_update[@]} -eq 0 ]]; then
 else
     echo "Apps needing updates: ${apps_needing_update[*]}"
 
-    # Build matrix JSON with jq
     matrix_json=$(
     printf '%s\n' "${apps_needing_update[@]}" |
-    jq -Rn --argjson cfg "$apps_json" '
+    jq -cRn --argjson cfg "$apps_json" '
         [ inputs
         | split(":") as $p
         | {
@@ -87,11 +86,12 @@ else
             upstream: $p[2]
             }
         | .description = $cfg[.app].description
-        ]' | jq -c
+        ]'
     )
 
-    {
-        echo "has_updates=true"
-        printf 'apps_matrix=%s\n' "$matrix_json"
-    } >>"$GITHUB_OUTPUT"
+    echo "has_updates=true" >> "$GITHUB_OUTPUT"
+    echo "apps_matrix<<EOF" >> "$GITHUB_OUTPUT"
+    echo "$matrix_json" >> "$GITHUB_OUTPUT"
+    echo "EOF" >> "$GITHUB_OUTPUT"
+
 fi

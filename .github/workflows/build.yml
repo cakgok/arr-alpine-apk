@@ -131,9 +131,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # FIX 1: Use 'include' to properly iterate over the JSON array.
-        # This creates a separate parallel job for each app needing an update,
-        # which is the intended behavior. The previous `app_data:` key was incorrect.
         include: ${{ fromJSON(needs.detect-updates.outputs.apps_matrix) }}
     
     steps:
@@ -142,8 +139,6 @@ jobs:
         ref: ${{ github.ref }}
         fetch-depth: 0
 
-    # FIX 2: Access matrix variables directly (e.g., matrix.app).
-    # The incorrect 'matrix.app_data.app' is no longer needed.
     - name: Build APK for ${{ matrix.app }}
       env:
         KEY_NAME: ${{ secrets.KEY_NAME }}
