@@ -1,5 +1,3 @@
-# Contributor: Your Name <your@email.com>
-# Maintainer: Your Name <your@email.com>
 pkgname=radarr
 pkgver=5.27.5.10198
 pkgrel=0
@@ -27,9 +25,16 @@ package() {
 	rm -f "$pkgdir/usr/lib/$pkgname/liblttng-ust-comm.so"
 
 	# The prebuilt binary is linked against the old liblttng-ust.so.0.
-	# We need to patch all executables to use the new liblttng-ust.so.1 provided by the lttng-ust package.
-	find "$pkgdir/usr/lib/$pkgname" -type f -executable -print0 | xargs -0 \
-		patchelf --replace-needed liblttng-ust.so.0 liblttng-ust.so.1
+	# We must find all ELF files that have this dependency and patch them to
+	# use liblttng-ust.so.1 provided by the newer package.
+	# We use scanelf to identify only the files that need patching.
+	find "$pkgdir/usr/lib/$pkgname" -type f -print0 | while IFS= read -r -d '' file; do
+		# Check if the file is an ELF and needs the old library, silencing scanelf errors for non-ELF files
+		if scanelf -q --needed "$file" 2>/dev/null | grep -q 'liblttng-ust.so.0'; then
+			msg "Patching '$file' to use new lttng-ust soname"
+			patchelf --replace-needed liblttng-ust.so.0 liblttng-ust.so.1 "$file"
+		fi
+	done
 
 	install -Dm755 /dev/null "$pkgdir/usr/bin/$pkgname"
 	cat > "$pkgdir/usr/bin/$pkgname" <<-EOF
