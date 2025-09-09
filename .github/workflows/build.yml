@@ -21,7 +21,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  ARCHES: '["x86_64", "aarch64"]'
   APPS_CONFIG: |
     {
       "bazarr":  { "upstream": "morpheus65535/bazarr",  "description": "Subtitle management" },
@@ -137,7 +136,6 @@ jobs:
       fail-fast: false
       matrix:
         app_data: ${{ fromJSON(needs.detect-updates.outputs.apps_matrix) }}
-        arch:     ${{ fromJSON('["x86_64","aarch64"]') }}
     
     steps:
     - uses: actions/checkout@v4
@@ -145,81 +143,18 @@ jobs:
         ref: ${{ github.ref }}
         fetch-depth: 0
 
-    - name: Enable multi-arch emulation
-      uses: docker/setup-qemu-action@v3
-
-    - name: Validate secrets
-      run: |
-        if [ -z "${{ secrets.KEY_NAME }}" ] || [ -z "${{ secrets.PACKAGER_PRIVKEY }}" ]; then
-          echo "Missing required secrets: KEY_NAME and PACKAGER_PRIVKEY"
-          exit 1
-        fi
-
-    - name: Build APK for ${{ matrix.app_data.app }} on ${{ matrix.arch }}
+    - name: Build APK for ${{ matrix.app_data.app }}
       env:
         KEY_NAME: ${{ secrets.KEY_NAME }}
         PRIVATE_KEY: ${{ secrets.PACKAGER_PRIVKEY }}
-        TARGET_ARCH: ${{ matrix.arch }}
+        TARGET_ARCH: x86_64
         APP_NAME: ${{ matrix.app_data.app }}
-      run: |
-          set -euo pipefail
+      run: bash ./scripts/build.sh
 
-          case "$TARGET_ARCH" in
-            x86_64)  DOCKER_ARCH=amd64  ;;
-            aarch64) DOCKER_ARCH=arm64  ;;
-            *) echo "Unknown arch $TARGET_ARCH" && exit 1 ;;
-          esac
-
-          docker run --rm \
-            --platform=linux/${DOCKER_ARCH} \
-            -e KEY_NAME -e PRIVATE_KEY -e TARGET_ARCH -e APP_NAME \
-            -v "$PWD/${APP_NAME}":/work -w /work alpine:edge sh -euo pipefail -c '
-              apk add --no-cache alpine-sdk openssl
-
-              adduser -D builder
-              addgroup builder abuild
-              install -d -m 700 /home/builder/.abuild
-
-              # --- sanitize KEY_NAME and write key safely ---
-              clean_keyname="$(printf %s "$KEY_NAME" | tr -d "\r\n")"
-              keyfile="/home/builder/.abuild/$clean_keyname"
-
-              # Remove CR on each line (if secret pasted with CRLF)
-              printf "%s" "$PRIVATE_KEY" | sed '"'"'s/\r$//'"'"' > "$keyfile"
-              chmod 600 "$keyfile"
-              chown -R builder:abuild /home/builder
-
-              # abuild runtime config
-              cat > /home/builder/.abuild/abuild.conf <<EOF
-              PACKAGER="CI Builder <ci@example.invalid>"
-              PACKAGER_PRIVKEY="$keyfile"
-              EOF
-              chown builder:abuild /home/builder/.abuild/abuild.conf
-
-              # (Optional) install public key for apk verification later
-              # name convention typically ends with .rsa.pub; use the same basename
-              pubname="$(basename "$clean_keyname").pub"
-              openssl rsa -in "$keyfile" -pubout > "/etc/apk/keys/$pubname" 2>/dev/null || true
-
-              echo "### DEBUG: verify key presence and path"
-              ls -l /home/builder/.abuild
-              echo "--- abuild.conf"; cat /home/builder/.abuild/abuild.conf
-              echo "--- test readable"; su -l builder -c "test -r \"$keyfile\" && echo OK: key readable"
-
-              # checksums & build
-              chown -R builder:abuild /work
-              su -l builder -c "cd /work && abuild checksum"
-              su -l builder -c "cd /work && abuild -r"
-
-              out=/work/out && mkdir -p "$out"
-              find /home/builder/packages -type f -path "*/${TARGET_ARCH}/*.apk" -exec cp {} "$out"/ \;
-              [ -n "$(ls -A "$out")" ] || { echo "No APKs produced"; exit 1; }
-            '
-
-    - name: Upload ${{ matrix.app_data.app }} ${{ matrix.arch }} artifact
+    - name: Upload ${{ matrix.app_data.app }} artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ matrix.app_data.app }}-${{ matrix.arch }}-apks
+        name: ${{ matrix.app_data.app }}-x86_64-apks
         path: ${{ matrix.app_data.app }}/out/*.apk
         retention-days: 30
 
@@ -227,6 +162,7 @@ jobs:
     needs: build-apks
     if: needs.detect-updates.outputs.has_updates == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
     strategy:
@@ -235,12 +171,11 @@ jobs:
         include: ${{ fromJSON(needs.detect-updates.outputs.apps_matrix) }}
 
     steps:
-    - name: Download ${{ matrix.app }} artifacts (both arches)
+    - name: Download ${{ matrix.app }} artifact
       uses: actions/download-artifact@v4
       with:
-        pattern: ${{ matrix.app }}-*          # matches bazarr-x86_64-apks etc.
+        name: ${{ matrix.app }}-x86_64-apks 
         path: artifacts
-        merge-multiple: true
 
     - name: List downloaded APKs
       run: |
@@ -250,9 +185,11 @@ jobs:
 
     - name: Create GitHub release
       uses: softprops/action-gh-release@v2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  
       with:
         tag_name:  ${{ matrix.app }}-v${{ matrix.version }}
-        name:      "${{ matrix.app }} v${{ matrix.version }} for Alpine"
+        name:      "${{ matrix.app }} v${{ matrix.version }} (Alpine x86_64)"
         draft:     false
         prerelease: false
         files:     artifacts/*.apk
@@ -261,16 +198,12 @@ jobs:
 
           **${{ matrix.description }}**
 
-          Alpine Linux APK packages for multiple architectures.
+          Alpine Linux APK package (*x86_64*).
 
-          ### Installation
+          ### Quick install
           ```bash
           apk add --allow-untrusted ${{ matrix.app }}-${{ matrix.version }}-r0.apk
           ```
-
-          ### Architectures
-          - x86_64 (amd64)
-          - aarch64 (arm64)
 
           Built automatically from upstream release:  
           https://github.com/${{ matrix.upstream }}/releases/tag/${{ matrix.version }}
