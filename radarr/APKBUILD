@@ -1,12 +1,15 @@
+# Contributor: Your Name <your@email.com>
+# Maintainer: Your Name <your@email.com>
 pkgname=radarr
 pkgver=5.27.5.10198
 pkgrel=0
 pkgdesc="Movie collection manager (pre-built musl binary)"
 url="https://radarr.video/"
-arch="x86_64" 
+arch="x86_64"
 license="GPL-3.0-or-later"
-depends="icu-libs ca-certificates tzdata so:liblttng-ust.so.1"
-makedepends="patchelf"options="!check"
+depends="icu-libs ca-certificates tzdata lttng-ust"
+makedepends="$depends patchelf"
+options="!check"
 _arch="x64"
 source="radarr-$pkgver-musl.tar.gz::https://github.com/Radarr/Radarr/releases/download/v${pkgver}/Radarr.master.${pkgver}.linux-musl-core-${_arch}.tar.gz"
 builddir="$srcdir"
@@ -16,30 +19,24 @@ build() {
 }
 
 package() {
-  install -d "$pkgdir/usr/lib/$pkgname"
-  cp -r "$srcdir/Radarr/." "$pkgdir/usr/lib/$pkgname/"
+	install -d "$pkgdir/usr/lib/$pkgname"
+	cp -r "$srcdir/Radarr/." "$pkgdir/usr/lib/$pkgname/"
 
-  # fix outdated LTTng SONAME in upstream binaries (expects .0; Alpine has .1)
-  find "$pkgdir/usr/lib/$pkgname" -type f \( -name '*.so*' -o -perm -u+x \) \
-    -exec sh -c '
-      for f; do
-        # Only touch real ELF executables/libs
-        if file -Sbi "$f" | grep -Eq "application/x-(sharedlib|executable)"; then
-          if scanelf -nq "$f" | grep -qw "liblttng-ust.so.0"; then
-            patchelf --replace-needed liblttng-ust.so.0 liblttng-ust.so.1 "$f"
-          fi
-        fi
-      done
-    ' _ {} +
+	# Radarr bundles its own liblttng-ust-comm which can cause conflicts.
+	# Remove it to ensure it uses the system-provided version.
+	rm -f "$pkgdir/usr/lib/$pkgname/liblttng-ust-comm.so"
 
-  install -Dm755 /dev/null "$pkgdir/usr/bin/$pkgname"
-  cat > "$pkgdir/usr/bin/$pkgname" <<-EOF
-  #!/usr/bin/env sh
-  exec /usr/lib/$pkgname/Radarr "\$@"
-  EOF
+	# The prebuilt binary is linked against the old liblttng-ust.so.0.
+	# We need to patch all executables to use the new liblttng-ust.so.1 provided by the lttng-ust package.
+	find "$pkgdir/usr/lib/$pkgname" -type f -executable -print0 | xargs -0 \
+		patchelf --replace-needed liblttng-ust.so.0 liblttng-ust.so.1
+
+	install -Dm755 /dev/null "$pkgdir/usr/bin/$pkgname"
+	cat > "$pkgdir/usr/bin/$pkgname" <<-EOF
+		#!/usr/bin/env sh
+		exec /usr/lib/$pkgname/Radarr "\$@"
+	EOF
 }
-
-
 
 sha512sums="
 8c12dda63c28205b194b2c9ecce9c6f51977503d32b48668d4014e5b7f8c4b5ff00ef52d9e8331855cd7db3e2198a03afc4fed96a3cf2ce5dfe2c1efc8c15b58  radarr-5.27.5.10198-musl.tar.gz
