@@ -160,10 +160,8 @@ jobs:
         path: ${{ matrix.app }}/out/
         retention-days: 30
     
-
-
   create-releases:
-    needs: build-apks
+    needs: [detect-updates, build-apks]
     if: needs.detect-updates.outputs.has_updates == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
