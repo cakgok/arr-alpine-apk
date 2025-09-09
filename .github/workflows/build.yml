@@ -198,6 +198,17 @@ jobs:
             chown -R builder:abuild /home/builder
             chown -R builder:abuild /work
         
+            echo "### DEBUG: after key generation"
+            echo "KEY_NAME = ${KEY_NAME}"
+            echo "--- /home/builder/.abuild"
+            ls -l /home/builder/.abuild | sed 's/^/   /'
+            echo "--- /etc/apk/keys (tail)"
+            ls -l /etc/apk/keys | tail -n 5 | sed 's/^/   /'
+
+            echo "### TEST: can builder read the public key?"
+            su -l builder -c "cat /home/builder/.abuild/${KEY_NAME}.pub >/dev/null && echo '   ✔ readable' || echo '   ✘ not readable'"
+
+
             su -l builder -c "cd /work && abuild checksum"
             su -l builder -c "cd /work && abuild -r"
 
