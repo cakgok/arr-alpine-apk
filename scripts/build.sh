@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-### 0. Sanity-check env --------------------------------------------------------
+# 1. Check for required variables
 for var in APP_NAME TARGET_ARCH KEY_NAME PRIVATE_KEY; do
   [[ -z "${!var:-}" ]] && { echo "::error::$var is not set"; exit 1; }
 done
@@ -13,38 +13,40 @@ mkdir -p "${OUT_DIR}"
 echo "🔧 Building ${APP_NAME} for ${TARGET_ARCH}"
 echo "📦 Output directory: ${OUT_DIR}"
 
-### 1. Launch a disposable Alpine builder container ---------------------------
+# 2. Run the build inside a Docker container
 docker run --rm \
   -v "${SRC_DIR}":/work \
   -v "${OUT_DIR}":/packages \
-  -e "ABUILD_REPODEST=/packages" \         # where abuild drops finished APKs
+  -e "ABUILD_REPODEST=/packages" \
+  -e "PRIVATE_KEY=${PRIVATE_KEY}" \
+  -e "KEY_NAME=${KEY_NAME}" \
+  -e "TARGET_ARCH=${TARGET_ARCH}" \
   alpine:edge sh -euxo pipefail -c '
-
-    ##### a) Bootstrap build environment #####################################
+    # Install build dependencies
     apk add --no-cache alpine-sdk sudo
 
-    # Non-root builder user (required by abuild)
+    # Set up a non-root builder user
     adduser -D builder
     addgroup builder abuild
     echo "builder ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builder
     chown -R builder:abuild /work /packages
 
-    ##### b) Build as the builder user #######################################
+    # Switch to the builder user to perform the build
     su builder -c "
       set -euo pipefail
       cd /work
 
-      # 1. Install signing key ----------------------------------------------
+      # Set up the abuild private key from the environment variable
       mkdir -p ~/.abuild
-      printf \"%s\n\" \"$PRIVATE_KEY\" > ~/.abuild/${KEY_NAME}.rsa
+      printf \"%s\n\" \"${PRIVATE_KEY}\" > ~/.abuild/${KEY_NAME}.rsa
       chmod 600 ~/.abuild/${KEY_NAME}.rsa
-      echo 'PACKAGER_PRIVKEY=\"~/.abuild/'${KEY_NAME}'.rsa\"' >> ~/.abuild/abuild.conf
+      echo \"PACKAGER_PRIVKEY=\\\"~/.abuild/${KEY_NAME}.rsa\\\"\" >> ~/.abuild/abuild.conf
 
-      # 2. Select architecture & build --------------------------------------
+      # Set the target architecture from the environment variable
       export CARCH=${TARGET_ARCH}
-      abuild -r            # -r = clean, checksum, build, sign
 
-      # APKs appear in \$ABUILD_REPODEST/<repo>/\$CARCH
+      # Run the build
+      abuild -r
     "
   '
 
