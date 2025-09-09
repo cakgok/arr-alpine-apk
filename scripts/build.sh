@@ -23,7 +23,7 @@ docker run --rm \
   -e "TARGET_ARCH=${TARGET_ARCH}" \
   alpine:edge sh -euxo pipefail -c '
     # Install build dependencies
-    apk add --no-cache alpine-sdk sudo
+    apk add --no-cache alpine-sdk sudo openssl
 
     # Set up a non-root builder user
     adduser -D builder
@@ -41,11 +41,19 @@ docker run --rm \
       printf \"%s\n\" \"\${PRIVATE_KEY}\" > ~/.abuild/\${KEY_NAME}.rsa
       chmod 600 ~/.abuild/\${KEY_NAME}.rsa
       
+      # Generate the public key from the private key
+      openssl rsa -in ~/.abuild/\${KEY_NAME}.rsa -pubout -out ~/.abuild/\${KEY_NAME}.rsa.pub
+      chmod 644 ~/.abuild/\${KEY_NAME}.rsa.pub
+      
       # Write the config file with proper path
       echo \"PACKAGER_PRIVKEY=\$HOME/.abuild/\${KEY_NAME}.rsa\" >> ~/.abuild/abuild.conf
 
       # Set the target architecture from the environment variable
       export CARCH=\${TARGET_ARCH}
+
+      # Debug: verify files exist
+      ls -la ~/.abuild/
+      cat ~/.abuild/abuild.conf
 
       # Run the build
       abuild -r
