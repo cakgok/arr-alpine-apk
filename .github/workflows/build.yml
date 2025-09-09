@@ -93,7 +93,7 @@ jobs:
             chown -R builder:abuild /work
             su -l builder -c "cd /work && abuild checksum"
           '
-          
+
     - name: Commit & tag
       run: |
         set -euo pipefail
@@ -151,7 +151,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.app_data.app }}-x86_64-apks
-        path: ${{ matrix.app_data.app }}/out/*.apk
+        path: ${{ matrix.app_data.app }}/out/**/*.apk
         retention-days: 30
 
   create-releases:
