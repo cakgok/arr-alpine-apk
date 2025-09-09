@@ -198,7 +198,7 @@ jobs:
             su -l builder -c "cd /work && abuild -r"
 
             out=/work/out && mkdir -p "$out"
-            find /home/builder/packages -type f -path "*/${ARCH}/*.apk" \
+            find /home/builder/packages -type f -path "*/${TARGET_ARCH}/*.apk" \
                 -exec cp {} "$out"/ \;
             [ -n "$(ls -A "$out")" ] || { echo "No APKs produced"; exit 1; }
           '
