@@ -159,12 +159,12 @@ jobs:
       env:
         KEY_NAME: ${{ secrets.KEY_NAME }}
         PRIVATE_KEY: ${{ secrets.PACKAGER_PRIVKEY }}
-        ARCH: ${{ matrix.arch }}
+        TARGET_ARCH: ${{ matrix.arch }}
         APP_NAME: ${{ matrix.app_data.app }}
       run: |
         set -euo pipefail
 
-        case "$ARCH" in
+        case "$TARGET_ARCH" in
           x86_64)  DOCKER_ARCH=amd64  ;;
           aarch64) DOCKER_ARCH=arm64  ;;
           *)       echo "Unknown arch $ARCH" && exit 1 ;;
@@ -174,7 +174,7 @@ jobs:
           --platform=linux/${DOCKER_ARCH} \
           -e KEY_NAME \
           -e PRIVATE_KEY \
-          -e ARCH \
+          -e TARGET_ARCH \
           -e APP_NAME \
           -v "$PWD/${APP_NAME}":/work -w /work \
           alpine:edge sh -euo pipefail -c '
