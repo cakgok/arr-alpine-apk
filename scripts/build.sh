@@ -41,6 +41,7 @@ docker run --rm \
       openssl rsa -in ~/.abuild/\${KEY_NAME}.rsa -pubout -out ~/.abuild/\${KEY_NAME}.rsa.pub
       chmod 644 ~/.abuild/\${KEY_NAME}.rsa.pub
       
+      sudo cp ~/.abuild/\${KEY_NAME}.rsa.pub /etc/apk/keys/
       echo \"PACKAGER_PRIVKEY=\$HOME/.abuild/\${KEY_NAME}.rsa\" >> ~/.abuild/abuild.conf
 
       export CARCH=\${TARGET_ARCH}
