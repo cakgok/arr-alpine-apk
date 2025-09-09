@@ -161,7 +161,7 @@ jobs:
         PRIVATE_KEY: ${{ secrets.ABUILD_PRIVATE_KEY }}
         ARCH: ${{ matrix.arch }}
         APP_NAME: ${{ matrix.app_data.app }}
-run: |
+      run: |
         set -euo pipefail
 
         case "$ARCH" in
@@ -202,6 +202,7 @@ run: |
                 -exec cp {} "$out"/ \;
             [ -n "$(ls -A "$out")" ] || { echo "No APKs produced"; exit 1; }
           '
+
     - name: Upload ${{ matrix.app_data.app }} ${{ matrix.arch }} artifact
       uses: actions/upload-artifact@v4
       with:
