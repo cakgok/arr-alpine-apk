@@ -167,7 +167,7 @@ jobs:
         case "$TARGET_ARCH" in
           x86_64)  DOCKER_ARCH=amd64  ;;
           aarch64) DOCKER_ARCH=arm64  ;;
-          *)       echo "Unknown arch $ARCH" && exit 1 ;;
+          *)       echo "Unknown arch $TARGET_ARCH" && exit 1 ;;
         esac
         
         docker run --rm \
