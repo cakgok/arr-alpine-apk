@@ -150,15 +150,15 @@ jobs:
 
     - name: Validate secrets
       run: |
-        if [ -z "${{ secrets.ABUILD_KEY_NAME }}" ] || [ -z "${{ secrets.ABUILD_PRIVATE_KEY }}" ]; then
-          echo "Missing required secrets: ABUILD_KEY_NAME and ABUILD_PRIVATE_KEY"
+        if [ -z "${{ secrets.KEY_NAME }}" ] || [ -z "${{ secrets.PACKAGER_PRIVKEY }}" ]; then
+          echo "Missing required secrets: KEY_NAME and PACKAGER_PRIVKEY"
           exit 1
         fi
 
     - name: Build APK for ${{ matrix.app_data.app }} on ${{ matrix.arch }}
       env:
-        KEY_NAME: ${{ secrets.ABUILD_KEY_NAME }}
-        PRIVATE_KEY: ${{ secrets.ABUILD_PRIVATE_KEY }}
+        KEY_NAME: ${{ secrets.KEY_NAME }}
+        PRIVATE_KEY: ${{ secrets.PACKAGER_PRIVKEY }}
         ARCH: ${{ matrix.arch }}
         APP_NAME: ${{ matrix.app_data.app }}
       run: |
