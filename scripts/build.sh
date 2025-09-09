@@ -38,19 +38,18 @@ docker run --rm \
 
       # Set up the abuild private key from the environment variable
       mkdir -p ~/.abuild
-      KEY_PATH=\"${HOME}/.abuild/${KEY_NAME}.rsa\"
-      printf \"%s\n\" \"${PRIVATE_KEY}\" > \"${KEY_PATH}\"
-      chmod 600 \"${KEY_PATH}\"
-
-      echo \"PACKAGER_PRIVKEY=\\\"${KEY_PATH}\\\"\" >> ~/.abuild/abuild.conf
-      export PACKAGER_PRIVKEY=\"${KEY_PATH}\"
+      printf \"%s\\n\" \"\${PRIVATE_KEY}\" > ~/.abuild/\${KEY_NAME}.rsa
+      chmod 600 ~/.abuild/\${KEY_NAME}.rsa
+      
+      # Correctly write the absolute path to the config file using \$HOME
+      echo \\"PACKAGER_PRIVKEY=\\\\"\$HOME/.abuild/\${KEY_NAME}.rsa\\\\"\\" >> ~/.abuild/abuild.conf
 
       # Set the target architecture from the environment variable
-      export CARCH=${TARGET_ARCH}
+      export CARCH=\${TARGET_ARCH}
 
       # Run the build
       abuild -r
     "
   '
-
+  
 echo "✅ Build complete. Artifacts now in ${OUT_DIR}"
