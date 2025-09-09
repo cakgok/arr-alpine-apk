@@ -38,9 +38,12 @@ docker run --rm \
 
       # Set up the abuild private key from the environment variable
       mkdir -p ~/.abuild
-      printf \"%s\n\" \"${PRIVATE_KEY}\" > ~/.abuild/${KEY_NAME}.rsa
-      chmod 600 ~/.abuild/${KEY_NAME}.rsa
-      echo \"PACKAGER_PRIVKEY=\\\"~/.abuild/${KEY_NAME}.rsa\\\"\" >> ~/.abuild/abuild.conf
+      KEY_PATH=\"${HOME}/.abuild/${KEY_NAME}.rsa\"
+      printf \"%s\n\" \"${PRIVATE_KEY}\" > \"${KEY_PATH}\"
+      chmod 600 \"${KEY_PATH}\"
+
+      echo \"PACKAGER_PRIVKEY=\\\"${KEY_PATH}\\\"\" >> ~/.abuild/abuild.conf
+      export PACKAGER_PRIVKEY=\"${KEY_PATH}\"
 
       # Set the target architecture from the environment variable
       export CARCH=${TARGET_ARCH}
