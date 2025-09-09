@@ -5,9 +5,8 @@ pkgdesc="Movie collection manager (pre-built musl binary)"
 url="https://radarr.video/"
 arch="x86_64" 
 license="GPL-3.0-or-later"
-depends="icu-libs ca-certificates tzdata lttng-ust"
-makedepends="$depends patchelf"
-options="!check"
+depends="icu-libs ca-certificates tzdata so:liblttng-ust.so.1"
+makedepends="patchelf"options="!check"
 _arch="x64"
 source="radarr-$pkgver-musl.tar.gz::https://github.com/Radarr/Radarr/releases/download/v${pkgver}/Radarr.master.${pkgver}.linux-musl-core-${_arch}.tar.gz"
 builddir="$srcdir"
@@ -20,22 +19,26 @@ package() {
   install -d "$pkgdir/usr/lib/$pkgname"
   cp -r "$srcdir/Radarr/." "$pkgdir/usr/lib/$pkgname/"
 
-  # fix outdated LTTng soname
+  # fix outdated LTTng SONAME in upstream binaries (expects .0; Alpine has .1)
   find "$pkgdir/usr/lib/$pkgname" -type f \( -name '*.so*' -o -perm -u+x \) \
     -exec sh -c '
-        for f; do
-          if scanelf -q "$f" | grep -q "liblttng-ust.so.0"; then
+      for f; do
+        # Only touch real ELF executables/libs
+        if file -Sbi "$f" | grep -Eq "application/x-(sharedlib|executable)"; then
+          if scanelf -nq "$f" | grep -qw "liblttng-ust.so.0"; then
             patchelf --replace-needed liblttng-ust.so.0 liblttng-ust.so.1 "$f"
           fi
-        done
+        fi
+      done
     ' _ {} +
 
   install -Dm755 /dev/null "$pkgdir/usr/bin/$pkgname"
   cat > "$pkgdir/usr/bin/$pkgname" <<-EOF
-    #!/usr/bin/env sh
-    exec /usr/lib/$pkgname/Radarr "\$@"
-EOF
+  #!/usr/bin/env sh
+  exec /usr/lib/$pkgname/Radarr "\$@"
+  EOF
 }
+
 
 
 sha512sums="
